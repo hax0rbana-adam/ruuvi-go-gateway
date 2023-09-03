@@ -1,0 +1,67 @@
+# This role sets up an ARM64 computer to collect Bluetooth beacons from
+# Ruuvi tags and send them to the local MQTT server.
+#
+# This has been tested on a Raspberry Pi 3b with 64-bit Debain 11
+#
+- name: Install software that is available from apt repos
+  ansible.builtin.package:
+    name: git, mosquitto, mosquitto-clients, vim
+
+- name: Checking to see if ruuvi-go-gateway is already installed
+  ansible.builtin.stat:
+    path: /usr/local/bin/ruuvi-go-gateway
+  register: binary_gateway
+
+- name: Downloading ruuvi-go-gateway
+  ansible.builtin.unarchive:
+    src: https://github.com/Scrin/ruuvi-go-gateway/releases/download/v0.1.7/ruuvi-go-gateway-v0.1.7-linux-arm64.tar.gz
+    dest: /usr/local/bin
+    remote_src: True
+  when: not binary_gateway.stat.exists
+
+- name: Creating directory for ruuvi-go-gateway configuration flie
+  ansible.builtin.file:
+    dest: /etc/ruuvi-go-gateway
+    state: directory
+
+- name: Writing config file for ruuvi-go-gateway
+  ansible.builtin.copy:
+    content: |
+      gw_mac: 00:00:00:00:00:00
+      all_advertisements: false
+      hci_index: 0
+      mqtt:
+        enabled: true
+        broker_url: tcp://localhost:1883
+        topic_prefix: ruuvi
+        lwt_online_payload: '{"state":"online"}'
+        lwt_offline_payload: '{"state":"offline"}'
+      logging:
+        type: simple
+        level: info
+    dest: /etc/ruuvi-go-gateway/config.yml
+
+- name: Creating service file to run ruuvi-go-gateway as a systemd service
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Ruuvi tag data collection service
+      Wants=network-online.target
+      After=network-online.target
+      
+      [Service]
+      ExecStart=/usr/local/bin/ruuvi-go-gateway -config /etc/ruuvi-go-gateway/config.yml -strict-config
+    dest: /etc/systemd/system/ruuvi-go-gateway.service
+
+- name: Starting ruuvi-go-gateway service
+  ansible.builtin.systemd:
+    daemon_reload: true
+    name: ruuvi-go-gateway
+    enabled: true
+    state: restarted
+    # Use restarted to ensure any config changes are picked up if the
+    # playbook is run a second time
+
+# Now you can view all of the temperature data transiting the local MQTT
+# server with the following command:
+# mosquitto_sub -h localhost -p 1883 -t 'ruuvi/#'
