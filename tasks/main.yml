@@ -50,7 +50,12 @@
       After=network-online.target
       
       [Service]
+      User=root
       ExecStart=/usr/local/bin/ruuvi-go-gateway -config /etc/ruuvi-go-gateway/config.yml -strict-config
+      Restart=on-failure
+      
+      [Install]
+      WantedBy=multi-user.target
     dest: /etc/systemd/system/ruuvi-go-gateway.service
 
 - name: Starting ruuvi-go-gateway service
