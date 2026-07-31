@@ -46,8 +46,8 @@
     content: |
       [Unit]
       Description=Ruuvi tag data collection service
-      Wants=network-online.target
-      After=network-online.target
+      Wants=network-online.target bluetooth.target
+      After=network-online.target bluetooth.target
       
       [Service]
       User=root
